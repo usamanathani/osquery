@@ -8,7 +8,7 @@
 #include <osquery/tables/yara/yara_utils.h>
 
 #include <osquery/events/windows/ntfs_event_publisher.h>
-#include "G:\\osquery\\osquery\\tables\\events\\windows\\ntfs_journal_events.h"
+#include "G:\\osquery\\osquery\\tables\\events\\windows\\ntfs_journal_events.h" // include ntfs_journal_events;
 
 
 
@@ -19,7 +19,7 @@
 #include <yara.h>
 
 namespace osquery {
-using FileEventSubscriber = NTFSEventSubscriber;
+using FileEventSubscriber = NTFSEventSubscriber; // inherits from ntfs_journal_events (ntfseventsubscriber class changed from final to public to inherit)
 using FileEventContextRef = NTFSEventContextRef;
 using FileSubscriptionContextRef = NTFSEventSubscriptionContextRef;
 
@@ -86,15 +86,15 @@ void YARAEventSubscriber::configure() {
       continue;
     }
 
-      StringList include_path_list = {};
+      StringList include_path_list = {}; // path lists for process configuration function in ntfs_journal_events
       StringList exclude_path_list = {};
       StringList access_categories;
 
     for (const auto& file : file_map.at(category)) {
       VLOG(1) << "Added YARA listener to: " << file;
       auto sc = createSubscriptionContext();
-      resolveFilePattern(file, include_path_list);
-      access_categories.push_back(category);
+      resolveFilePattern(file, include_path_list); // globbing function that resolves wildcards and expands paths;
+      access_categories.push_back(category); // pushes category and file to include paths; 
       include_path_list.push_back(file);           
       //sc->access_paths.insert(file);
       //sc->write_paths.insert(file);
@@ -104,7 +104,7 @@ void YARAEventSubscriber::configure() {
       //const auto& access_frns = sc->access_frns;
       sc->category = category;
      processConfiguration(
-            sc, access_categories, include_path_list, exclude_path_list);
+            sc, access_categories, include_path_list, exclude_path_list); // processes the configuration and also finds corresponding frns for paths
       
       subscribe(&YARAEventSubscriber::Callback, sc);
     }
@@ -114,11 +114,11 @@ void YARAEventSubscriber::configure() {
 Status YARAEventSubscriber::Callback(const FileEventContextRef& ec,
                                      const FileSubscriptionContextRef& sc) {
 
- std::vector<NTFSEventRecord> eventr;
+ std::vector<NTFSEventRecord> eventr; 
  
  //eventr = ec -> event_list;
 
- for (const auto & ex : ec->event_list) {
+ for (const auto & ex : ec->event_list) { // to resolve the vector 
  //for( auto & ex : eventr) {
 
  
@@ -129,9 +129,9 @@ Status YARAEventSubscriber::Callback(const FileEventContextRef& ec,
     std::string usnstring;
     USNJournalEventRecord::Type utype;
     utype = ex.type;
-    usnstring = kNTFSEventToStringMap.at(utype);
+    usnstring = kNTFSEventToStringMap.at(utype); // map function that determines type of action
 
-    if(isWriteOperation(ex.type)) {
+    if(isWriteOperation(ex.type)) { // isWriteoperation is a function part of ntfs_journal_events to determine if a particular action writes or not. 
       return Status(1, "Invalid action");
 
     }
@@ -201,9 +201,9 @@ Status YARAEventSubscriber::Callback(const FileEventContextRef& ec,
   }
 }
 
-void processConfiguration(const FileSubscriptionContextRef context,
+/* void processConfiguration(const FileSubscriptionContextRef context,
                           const StringList& access_categories,
                           StringList& include_paths,
-                          StringList& exclude_paths);
+                          StringList& exclude_paths); */
 
 } // namespace  - osquery
