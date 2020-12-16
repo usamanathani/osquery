@@ -23,7 +23,7 @@
 namespace osquery {
 /// The subscription context contains the list of paths the subscriber is
 /// interested in
-struct NTFSEventSubscriptionContext : public SubscriptionContext {
+struct NTFSEventSubscriptionContext : public SubscriptionContext { // changed from final for inheritance in yara_wevents;
   /// The category that this event originated from.
   std::string category;
 
