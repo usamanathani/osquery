@@ -2,21 +2,24 @@
 #include <string>
 
 #include <osquery/config/config.h>
+#include <osquery/filesystem/filesystem.h>
 #include <osquery/logger/logger.h>
 #include <osquery/registry/registry_factory.h>
 #include <osquery/tables/yara/yara_utils.h>
 
-#include <osquery/tables/events/windows/ntfs_journal_events.h>
 #include <osquery/events/windows/ntfs_event_publisher.h>
+#include "G:\\osquery\\osquery\\tables\\events\\windows\\ntfs_journal_events.h"
+
+
+
 
 #ifdef CONCAT
 #undef CONCAT
 #endif
 #include <yara.h>
 
-
 namespace osquery {
-using FileEventSubscriber = EventSubscriber<NTFSEventPublisher>;
+using FileEventSubscriber = NTFSEventSubscriber;
 using FileEventContextRef = NTFSEventContextRef;
 using FileSubscriptionContextRef = NTFSEventSubscriptionContextRef;
 
@@ -39,7 +42,11 @@ class YARAEventSubscriber : public FileEventSubscriber {
    */
   Status Callback(const FileEventContextRef& ec,
                   const FileSubscriptionContextRef& sc);
+
 };
+
+
+
 
 REGISTER(YARAEventSubscriber, "event_subscriber", "yara_events");
 
@@ -79,13 +86,26 @@ void YARAEventSubscriber::configure() {
       continue;
     }
 
+      StringList include_path_list = {};
+      StringList exclude_path_list = {};
+      StringList access_categories;
+
     for (const auto& file : file_map.at(category)) {
       VLOG(1) << "Added YARA listener to: " << file;
       auto sc = createSubscriptionContext();
-      
-      const auto& write_paths = sc->write_paths;
-      const auto& access_paths = sc->access_paths;
+      resolveFilePattern(file, include_path_list);
+      access_categories.push_back(category);
+      include_path_list.push_back(file);           
+      //sc->access_paths.insert(file);
+      //sc->write_paths.insert(file);
+      //const auto& write_paths = sc->write_paths;
+      //const auto& access_paths = sc->access_paths;
+      //const auto& write_frns = sc->write_frns;
+      //const auto& access_frns = sc->access_frns;
       sc->category = category;
+     processConfiguration(
+            sc, access_categories, include_path_list, exclude_path_list);
+      
       subscribe(&YARAEventSubscriber::Callback, sc);
     }
   }
@@ -94,31 +114,40 @@ void YARAEventSubscriber::configure() {
 Status YARAEventSubscriber::Callback(const FileEventContextRef& ec,
                                      const FileSubscriptionContextRef& sc) {
 
+ std::vector<NTFSEventRecord> eventr;
  
+ //eventr = ec -> event_list;
+
+ for (const auto & ex : ec->event_list) {
+ //for( auto & ex : eventr) {
+
  
-  for(const auto& event : ec->event_list) {
+ //for (auto i = 0; i < eventr.size(); ++i){
+  //for(int i=0; i<elen; i++){
+  //for(const auto& event : ec->event_list) { 
+    
     std::string usnstring;
     USNJournalEventRecord::Type utype;
-    utype = event.type;
+    utype = ex.type;
     usnstring = kNTFSEventToStringMap.at(utype);
 
-  if (usnstring != "UPDATED" && usnstring != "CREATED") {
+    if(isWriteOperation(ex.type)) {
+      return Status(1, "Invalid action");
+
+    }
+
+/*
+  if (usnstring != "FileOverwrite" && usnstring != "FileCreation") {
     return Status(1, "Invalid action");
   }
-
+*/
 
    Row r;
    
   r["action"] = usnstring;
-  r["target_path"] = event.path;
-  
-  
+  r["target_path"] = ex.path;
   r["category"] = sc->category;
 
-  // Only FSEvents transactions updates (inotify is a no-op).
-  if(!win_flag){
-  r["transaction_id"] = INTEGER(ec->transaction_id);
-  }
   // These are default values, to be updated in YARACallback.
   r["count"] = INTEGER(0);
   r["matches"] = std::string("");
@@ -152,7 +181,7 @@ Status YARAEventSubscriber::Callback(const FileEventContextRef& ec,
     for (const auto& rule : group_iter->value.GetArray()) {
       std::string group = rule.GetString();
       int result = yr_rules_scan_file(rules[group],
-                                      ec->path.c_str(),
+                                      ex.path.c_str(),
                                       SCAN_FLAGS_FAST_MODE,
                                       YARACallback,
                                       (void*)&r,
@@ -171,5 +200,10 @@ Status YARAEventSubscriber::Callback(const FileEventContextRef& ec,
   return Status::success();
   }
 }
+
+void processConfiguration(const FileSubscriptionContextRef context,
+                          const StringList& access_categories,
+                          StringList& include_paths,
+                          StringList& exclude_paths);
 
 } // namespace  - osquery
