@@ -57,6 +57,7 @@ function(generateNativeTables)
     python_packages.table
     routes.table
     ssh_configs.table
+    startup_items.table
     system_info.table
     uptime.table
     user_ssh_keys.table
@@ -79,7 +80,6 @@ function(generateNativeTables)
   set(platform_dependent_spec_files
     "arp_cache.table:linux,macos,windows"
     "atom_packages.table:linux,macos,windows"
-    "office_mru.table:windows"
     "darwin/account_policy_data.table:macos"
     "darwin/ad_config.table:macos"
     "darwin/alf.table:macos"
@@ -98,7 +98,6 @@ function(generateNativeTables)
     "darwin/device_firmware.table:macos"
     "darwin/disk_events.table:macos"
     "darwin/event_taps.table:macos"
-    "darwin/extended_attributes.table:macos"
     "darwin/fan_speed_sensors.table:macos"
     "darwin/gatekeeper.table:macos"
     "darwin/gatekeeper_approved_apps.table:macos"
@@ -112,6 +111,7 @@ function(generateNativeTables)
     "darwin/keychain_items.table:macos"
     "darwin/launchd.table:macos"
     "darwin/launchd_overrides.table:macos"
+    "darwin/location_services.table:macos"
     "darwin/managed_policies.table:macos"
     "darwin/mdfind.table:macos"
     "darwin/mdls.table:macos"
@@ -156,14 +156,11 @@ function(generateNativeTables)
     "linux/elf_segments.table:linux"
     "linux/md_devices.table:linux"
     "linux/process_namespaces.table:linux"
-    "linux/bpf_process_events.table:linux"
-    "linux/bpf_socket_events.table:linux"
     "linux/syslog_events.table:linux"
     "linux/rpm_packages.table:linux"
     "linux/portage_packages.table:linux"
     "linux/process_file_events.table:linux"
     "linux/md_drives.table:linux"
-    "linux/ec2_instance_tags.table:linux"
     "linux/npm_packages.table:linux"
     "linux/elf_info.table:linux"
     "linux/md_personalities.table:linux"
@@ -174,16 +171,18 @@ function(generateNativeTables)
     "linux/memory_map.table:linux"
     "linux/deb_packages.table:linux"
     "linux/elf_dynamic.table:linux"
-    "linux/ec2_instance_metadata.table:linux"
     "linux/elf_sections.table:linux"
     "linux/selinux_settings.table:linux"
     "linux/apparmor_profiles.table:linux"
     "linux/apparmor_events.table:linux"
+    "linux/systemd_units.table:linux"
     "linwin/intel_me_info.table:linux,windows"
+    "linwin/ec2_instance_metadata.table:linux,windows"
+    "linwin/ec2_instance_tags.table:linux,windows"
     "lldpd/lldp_neighbors.table:linux,macos,freebsd"
     "kernel_info.table:linux,macos,windows"
     "macwin/certificates.table:macos,windows"
-    "macwin/startup_items.table:macos,windows,linux"
+    "posix/extended_attributes.table:linux,macos"
     "posix/acpi_tables.table:linux,macos"
     "posix/apt_sources.table:linux,macos,freebsd"
     "posix/augeas.table:linux,macos,freebsd"
@@ -260,6 +259,7 @@ function(generateNativeTables)
     "windows/chassis_info.table:windows"
     "windows/logon_sessions.table:windows"
     "windows/ntfs_acl_permissions.table:windows"
+    "windows/office_mru.table:windows"
     "windows/scheduled_tasks.table:windows"
     "windows/windows_crashes.table:windows"
     "windows/services.table:windows"
@@ -303,6 +303,13 @@ function(generateNativeTables)
     "yara/yara_events.table:linux,macos"
     "yara/yara.table:linux,macos,freebsd,windows"
   )
+
+  if(OSQUERY_BUILD_BPF)
+    list(APPEND platform_dependent_spec_files
+      "linux/bpf_process_events.table:linux"
+      "linux/bpf_socket_events.table:linux"
+    )
+  endif()
 
   foreach(spec_descriptor ${platform_dependent_spec_files})
     string(REPLACE ":" ";" spec_descriptor "${spec_descriptor}")

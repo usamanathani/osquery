@@ -7,15 +7,10 @@
  * SPDX-License-Identifier: (Apache-2.0 OR GPL-2.0-only)
  */
 
-#pragma once
-
-#include <osquery/core/system.h>
-#include <osquery/sdk.h>
+#include <osquery/core/flags.h>
 
 namespace osquery {
-class ExampleTable : public TablePlugin {
- private:
-  TableColumns columns() const;
-  QueryData generate(QueryContext& request);
-};
+
+FLAG(bool, enable_file_events, false, "Enables the file_events publisher");
+
 } // namespace osquery

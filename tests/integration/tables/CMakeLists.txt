@@ -178,6 +178,7 @@ function(generateTestsIntegrationTablesTestsTest)
       socket_events.cpp
       startup_items.cpp
       syslog_events.cpp
+      systemd_units.cpp
       yara_events.cpp
       yara.cpp
     )
@@ -222,6 +223,7 @@ function(generateTestsIntegrationTablesTestsTest)
       keychain_items.cpp
       launchd.cpp
       launchd_overrides.cpp
+      location_services.cpp
       managed_policies.cpp
       mdfind.cpp
       nfs_shares.cpp

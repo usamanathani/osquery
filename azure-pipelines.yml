@@ -21,7 +21,7 @@ jobs:
       vmImage: 'Ubuntu-16.04'
 
     container:
-      image: trailofbits/osquery:ubuntu-18.04-toolchain-v8
+      image: trailofbits/osquery:ubuntu-18.04-toolchain-v9
       options: --privileged --init -v /var/run/docker.sock:/var/run/docker.sock
 
     timeoutInMinutes: 120
@@ -46,17 +46,16 @@ jobs:
         path: $(Build.SourcesDirectory)/.git/modules
       displayName: Submodule cache
 
-    - task: CMake@1
+    - script: |
+        cmake --version
+        cmake -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+              -DOSQUERY_TOOLCHAIN_SYSROOT=/usr/local/osquery-toolchain \
+              -DOSQUERY_BUILD_TESTS=ON \
+              -DOSQUERY_BUILD_ROOT_TESTS=ON \
+              $(EXTRA_CMAKE_ARGS) \
+              $(Build.SourcesDirectory)
       displayName: "Configure osquery"
-      inputs:
-        workingDirectory: $(BUILD_DIR)
-        cmakeArgs:
-          -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
-          -DOSQUERY_TOOLCHAIN_SYSROOT=/usr/local/osquery-toolchain
-          -DOSQUERY_BUILD_TESTS=ON
-          -DOSQUERY_BUILD_ROOT_TESTS=ON
-          $(EXTRA_CMAKE_ARGS)
-          $(Build.SourcesDirectory)
+      workingDirectory: $(BUILD_DIR)
 
     - script: |
         ./tools/formatting/format-test.sh --build $(BUILD_DIR)
@@ -101,20 +100,30 @@ jobs:
     - script: |
         cmake -DPACKAGING_SYSTEM=DEB $(Build.SourcesDirectory)
         cmake --build . --target package -j 3
+        cp *.deb $(Build.ArtifactStagingDirectory)
+        cp *.ddeb $(Build.ArtifactStagingDirectory)
       displayName: "Run DEB packaging"
       workingDirectory: $(BUILD_DIR)
 
     - script: |
         cmake -DPACKAGING_SYSTEM=RPM $(Build.SourcesDirectory)
         cmake --build . --target package -j 3
+        cp *.rpm $(Build.ArtifactStagingDirectory)
       displayName: "Run RPM packaging"
       workingDirectory: $(BUILD_DIR)
 
     - script: |
         cmake -DPACKAGING_SYSTEM=TGZ $(Build.SourcesDirectory)
         cmake --build . --target package -j 3
+        cp *.tar.gz $(Build.ArtifactStagingDirectory)
       displayName: "Run TGZ packaging"
       workingDirectory: $(BUILD_DIR)
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: "$(Build.ArtifactStagingDirectory)"
+        artifactName: "Linux $(BUILD_TYPE) Packages"
+      displayName: Publish Linux packages
 
     - script: |
         echo "##vso[task.setvariable variable=Status;isOutput=true]1"
@@ -174,13 +183,23 @@ jobs:
 
     steps:
     - script: |
-        cmake --version
+        rm -f /usr/local/bin/2to3
+        brew update
         brew upgrade
         brew install ccache flex bison
-        pip3 install setuptools pexpect==3.3 psutil timeout_decorator six thrift==0.11.0 osquery
         sudo xcode-select -s /Applications/Xcode_10.3.app/Contents/Developer
-      displayName: "Install Homebrew and prerequisites"
+      displayName: "Upgrade Homebrew and install build prerequisites"
       timeoutInMinutes: 20
+
+    - script: |
+        wget https://cmake.org/files/v3.17/cmake-3.17.5-Darwin-x86_64.tar.gz -O /tmp/cmake-3.17.5-Darwin-x86_64.tar.gz
+        tar xf /tmp/cmake-3.17.5-Darwin-x86_64.tar.gz -C $HOME
+        echo "##vso[task.prependpath]$HOME/cmake-3.17.5-Darwin-x86_64/CMake.app/Contents/bin"
+      displayName: "Install CMake"
+
+    - script: |
+        pip3 install setuptools pexpect==3.3 psutil timeout_decorator six thrift==0.11.0 osquery
+      displayName: "Install tests prerequisites"
 
     - script: mkdir $(Build.BinariesDirectory)/build
       displayName: "Create build folder"
@@ -192,11 +211,15 @@ jobs:
         path: $(Build.SourcesDirectory)/.git/modules
       displayName: Submodule cache
 
-    - task: CMake@1
+    - script: |
+        cmake --version
+        cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11 \
+              -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+              -DOSQUERY_BUILD_TESTS=ON \
+              $(EXTRA_CMAKE_ARGS) \
+              $(Build.SourcesDirectory)
       displayName: "Configure osquery"
-      inputs:
-        workingDirectory: $(Build.BinariesDirectory)/build
-        cmakeArgs: -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11 -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DOSQUERY_BUILD_TESTS=ON $(EXTRA_CMAKE_ARGS) $(Build.SourcesDirectory)
+      workingDirectory: $(Build.BinariesDirectory)/build
 
     - task: CacheBeta@2
       inputs:
@@ -205,28 +228,34 @@ jobs:
         path: $(CCACHE_DIR)
       displayName: ccache
 
-    - task: CMake@1
+    - script: |
+        cmake --build . -j 3
       displayName: "Build osquery"
-      inputs:
-        workingDirectory: $(Build.BinariesDirectory)/build
-        cmakeArgs: --build . -j 3
+      workingDirectory: $(Build.BinariesDirectory)/build
 
     - script: |
         ctest --build-nocmake -V
       displayName: "Run tests"
       workingDirectory: $(Build.BinariesDirectory)/build
 
-    - task: CMake@1
+    - script: |
+        cmake --build . --target package -j 3
+        cp *.pkg $(Build.ArtifactStagingDirectory)
       displayName: "Run productbuild packaging"
-      inputs:
-        workingDirectory: $(Build.BinariesDirectory)/build
-        cmakeArgs: --build . --target package -j 3
+      workingDirectory: $(Build.BinariesDirectory)/build
 
     - script: |
         cmake -DPACKAGING_SYSTEM=TGZ $(Build.SourcesDirectory)
         cmake --build . --target package -j 3
+        cp *.tar.gz $(Build.ArtifactStagingDirectory)
       displayName: "Run TGZ packaging"
       workingDirectory: $(Build.BinariesDirectory)/build
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: "$(Build.ArtifactStagingDirectory)"
+        artifactName: "macOS $(BUILD_TYPE) Packages"
+      displayName: Publish macOS packages
 
     - script: |
         echo "##vso[task.setvariable variable=Status;isOutput=true]1"
@@ -271,15 +300,13 @@ jobs:
       matrix:
         x64:
           VC_VARS_FILE: vcvars64.bat
-          PYTHON_FOLDER: x64
         win32:
           VC_VARS_FILE: vcvars32.bat
-          PYTHON_FOLDER: x86
 
     pool:
       vmImage: windows-2019
 
-    timeoutInMinutes: 120
+    timeoutInMinutes: 240
 
     variables:
       SCCACHE_DIR: $(Pipeline.Workspace)\sccache
@@ -293,28 +320,32 @@ jobs:
 
     - checkout: self
 
+    # This needs to be done before trying to install packages
+    # because the python paths added in the PATH will only be visible in successive steps
     - powershell: |
-        cmake --version
-        $python3_path = ((Get-Item C:\hostedtoolcache\windows\Python\3*\$(PYTHON_FOLDER)) | Sort-Object -Descending)[0].FullName
-        & $python3_path\python -m pip install --upgrade pip --no-warn-script-location
-        & $python3_path\python -m pip install setuptools psutil timeout_decorator thrift==0.11.0 osquery pywin32
+        $python3_path = (Get-Item C:\hostedtoolcache\windows\Python\3*\x64 | Sort-Object -Descending)[0].FullName
+        echo "Found python installation at $python3_path"
+        Write-Host "##vso[task.prependpath]$python3_path"
+        Write-Host "##vso[task.prependpath]$python3_path\Scripts"
+        Write-Host "##vso[task.setvariable variable=PYTHON_ROOT]$python3_path"
+      displayName: Find newest version of python
+
+    - powershell: |
+        python -m pip install --upgrade pip
+        python -m pip install wheel
+        python -m pip install setuptools psutil timeout_decorator thrift==0.11.0 osquery pywin32
       displayName: Install tests prerequisites
 
     - powershell: |
-        mkdir $(Build.BinariesDirectory)\build
-      displayName: "Create build folder"
+        (New-Object System.Net.WebClient).DownloadFile("https://cmake.org/files/v3.17/cmake-3.17.5-win64-x64.zip", "$env:TEMP\cmake-3.17.5-win64-x64.zip")
+        7z x -oC:\ -y "$env:TEMP\cmake-3.17.5-win64-x64.zip"
+        Write-Host "##vso[task.prependpath]C:\cmake-3.17.5-win64-x64\bin"
+      displayName: Install CMake
 
     - powershell: |
         tools\ci\scripts\install_openssl_formula_dependencies.ps1
       displayName: "Installing: Strawberry Perl"
       workingDirectory: $(Build.SourcesDirectory)
-
-    - task: CacheBeta@2
-      inputs:
-        key: submodules | Windows | $(SubmoduleCacheVersion) | $(Build.SourceVersion)
-        restoreKeys: submodules | Windows | $(SubmoduleCacheVersion)
-        path: $(Build.SourcesDirectory)/.git/modules
-      displayName: Submodule cache
 
     - powershell: |
         (New-Object System.Net.WebClient).DownloadFile(`
@@ -336,7 +367,19 @@ jobs:
         Write-Host "##vso[task.prependpath]C:\Program Files\Ninja"
       displayName: "Install Ninja"
 
+    - powershell: |
+        mkdir $(Build.BinariesDirectory)\build
+      displayName: "Create build folder"
+
+    - task: CacheBeta@2
+      inputs:
+        key: submodules | Windows | $(SubmoduleCacheVersion) | $(Build.SourceVersion)
+        restoreKeys: submodules | Windows | $(SubmoduleCacheVersion)
+        path: $(Build.SourcesDirectory)/.git/modules
+      displayName: Submodule cache
+
     - script: |
+        cmake --version
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\$(VC_VARS_FILE)"
         cmake -G Ninja ^
         -DCMAKE_C_COMPILER=cl.exe ^
@@ -345,6 +388,7 @@ jobs:
         -DOSQUERY_BUILD_TESTS=ON ^
         -DCMAKE_C_COMPILER_LAUNCHER="sccache.exe" ^
         -DCMAKE_CXX_COMPILER_LAUNCHER="sccache.exe" ^
+        -DPython3_ROOT_DIR="$(PYTHON_ROOT)" ^
         $(Build.SourcesDirectory)
       displayName: "Configure osquery"
       workingDirectory: $(Build.BinariesDirectory)\build
@@ -364,16 +408,22 @@ jobs:
       displayName: "Build osquery"
       workingDirectory: $(Build.BinariesDirectory)\build
 
-    - powershell: |
+    - script: |
         ctest --build-nocmake -C Release -V
       displayName: "Run tests"
       workingDirectory: $(Build.BinariesDirectory)/build
 
-    - task: CMake@1
+    - script: |
+        cmake --build . --target package --config Release -j 3
+        cp *.msi $(Build.ArtifactStagingDirectory)
       displayName: "Run WIX packaging"
+      workingDirectory: $(Build.BinariesDirectory)/build
+
+    - task: PublishBuildArtifacts@1
       inputs:
-        workingDirectory: $(Build.BinariesDirectory)/build
-        cmakeArgs: --build . --target package --config Release -j 3
+        pathToPublish: "$(Build.ArtifactStagingDirectory)"
+        artifactName: "Windows-$(System.JobName) Packages"
+      displayName: Publish Windows packages
 
     - powershell: |
         # .artifactignore has to be copied in the cached folder, otherwise the CacheBeta task won't see it

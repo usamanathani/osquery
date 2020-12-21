@@ -7,6 +7,8 @@ if(NOT DEFINED OSQUERY_TOOLCHAIN_SYSROOT)
 endif()
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # The function creates the osquery_<c|cxx>_settings targets with compiler and linker flags
 # for internal targets and <c|cxx>_settings for any other target to use as a base.
 #
@@ -168,6 +170,7 @@ function(setupBuildFlags)
         "-framework Foundation"
         "-framework CoreServices"
         "-framework CoreFoundation"
+        "-framework CoreLocation"
         "-framework CoreWLAN"
         "-framework CoreGraphics"
         "-framework DiskArbitration"
@@ -208,14 +211,38 @@ function(setupBuildFlags)
       target_compile_options(c_settings INTERFACE -g0)
     endif()
 
-    if(OSQUERY_ENABLE_ADDRESS_SANITIZER)
+    if(OSQUERY_BUILD_FUZZERS)
+      if(OSQUERY_ENABLE_ADDRESS_SANITIZER)
+        target_compile_options(cxx_settings INTERFACE
+          -fsanitize=address,fuzzer-no-link
+          -fsanitize-coverage=edge,indirect-calls
+        )
+        target_compile_options(c_settings INTERFACE
+          -fsanitize=address,fuzzer-no-link
+          -fsanitize-coverage=edge,indirect-calls
+        )
+
+        # Support ASAN within coroutines2.
+        # Note that __ucontext__ is orders of magnitude slower than __fcontext__.
+        target_compile_definitions(cxx_settings INTERFACE
+          BOOST_USE_UCONTEXT
+          BOOST_USE_ASAN
+        )
+
+        # Require at least address (may be refactored out)
+        target_link_options(cxx_settings INTERFACE
+          -fsanitize=address
+        )
+        target_link_options(c_settings INTERFACE
+          -fsanitize=address
+        )
+      endif()
+    elseif(OSQUERY_ENABLE_ADDRESS_SANITIZER)
       target_compile_options(cxx_settings INTERFACE
-        -fsanitize=address,fuzzer-no-link
-        -fsanitize-coverage=edge,indirect-calls
+        -fsanitize=address
       )
       target_compile_options(c_settings INTERFACE
-        -fsanitize=address,fuzzer-no-link
-        -fsanitize-coverage=edge,indirect-calls
+        -fsanitize=address
       )
 
       # Support ASAN within coroutines2.
@@ -229,6 +256,9 @@ function(setupBuildFlags)
       target_link_options(cxx_settings INTERFACE
         -fsanitize=address
       )
+      target_link_options(c_settings INTERFACE
+          -fsanitize=address
+        )
     endif()
   elseif(DEFINED PLATFORM_WINDOWS)
 
@@ -245,7 +275,6 @@ function(setupBuildFlags)
 
     set(windows_common_link_options
       /SUBSYSTEM:CONSOLE
-      /LTCG
       ntdll.lib
       ole32.lib
       oleaut32.lib

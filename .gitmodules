@@ -75,10 +75,10 @@
 	url = https://github.com/aclements/libelfin
 [submodule "libraries/cmake/source/libgcrypt/src"]
 	path = libraries/cmake/source/libgcrypt/src
-	url = https://dev.gnupg.org/source/libgcrypt.git
+	url = https://github.com/osquery/third-party-libgcrypt.git
 [submodule "libraries/cmake/source/libgpg-error/src"]
 	path = libraries/cmake/source/libgpg-error/src
-	url = https://dev.gnupg.org/source/libgpg-error.git
+	url = https://github.com/osquery/third-party-libgpg-error.git
 [submodule "libraries/cmake/source/libcryptsetup/src"]
 	path = libraries/cmake/source/libcryptsetup/src
 	url = https://gitlab.com/cryptsetup/cryptsetup.git
@@ -127,3 +127,12 @@
 [submodule "libraries/cmake/source/ebpfpub/src"]
 	path = libraries/cmake/source/ebpfpub/src
 	url = https://github.com/trailofbits/ebpfpub
+[submodule "libraries/cmake/source/dbus/src"]
+	path = libraries/cmake/source/dbus/src
+	url = https://gitlab.freedesktop.org/dbus/dbus.git
+[submodule "libraries/cmake/source/expat/src"]
+	path = libraries/cmake/source/expat/src
+	url = https://github.com/libexpat/libexpat
+[submodule "libraries/cmake/source/libcap/src"]
+	path = libraries/cmake/source/libcap/src
+	url = https://kernel.googlesource.com/pub/scm/libs/libcap/libcap.git
