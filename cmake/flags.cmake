@@ -222,13 +222,6 @@ function(setupBuildFlags)
           -fsanitize-coverage=edge,indirect-calls
         )
 
-        # Support ASAN within coroutines2.
-        # Note that __ucontext__ is orders of magnitude slower than __fcontext__.
-        target_compile_definitions(cxx_settings INTERFACE
-          BOOST_USE_UCONTEXT
-          BOOST_USE_ASAN
-        )
-
         # Require at least address (may be refactored out)
         target_link_options(cxx_settings INTERFACE
           -fsanitize=address
@@ -237,6 +230,17 @@ function(setupBuildFlags)
           -fsanitize=address
         )
       endif()
+
+      list(APPEND osquery_defines
+        OSQUERY_IS_FUZZING
+      )
+
+      target_compile_options(cxx_settings INTERFACE
+        -fno-omit-frame-pointer
+      )
+      target_compile_options(c_settings INTERFACE
+        -fno-omit-frame-pointer
+      )
     elseif(OSQUERY_ENABLE_ADDRESS_SANITIZER)
       target_compile_options(cxx_settings INTERFACE
         -fsanitize=address
@@ -245,25 +249,18 @@ function(setupBuildFlags)
         -fsanitize=address
       )
 
-      # Support ASAN within coroutines2.
-      # Note that __ucontext__ is orders of magnitude slower than __fcontext__.
-      target_compile_definitions(cxx_settings INTERFACE
-        BOOST_USE_UCONTEXT
-        BOOST_USE_ASAN
-      )
-
       # Require at least address (may be refactored out)
       target_link_options(cxx_settings INTERFACE
         -fsanitize=address
       )
       target_link_options(c_settings INTERFACE
-          -fsanitize=address
-        )
+        -fsanitize=address
+      )
     endif()
   elseif(DEFINED PLATFORM_WINDOWS)
 
     set(windows_common_compile_options
-      "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:/Z7;/Gs;/GS>"
+      "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:/Gs;/GS>"
       "$<$<CONFIG:Debug>:/Od;/UNDEBUG>$<$<NOT:$<CONFIG:Debug>>:/Ot>"
       /guard:cf
       /bigobj
@@ -271,6 +268,7 @@ function(setupBuildFlags)
 
     set(osquery_windows_compile_options
       /W3
+      "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:/Z7>"
     )
 
     set(windows_common_link_options
