@@ -358,8 +358,8 @@ export DISPLAY=:0.0
         file <<"*/30 * * * * root /etc/osquery/edr_connect30.sh\n"; // cron.d files should have a line break at the end of the file to ensure it works
         file.close();
         exec("chown -R root:root /etc/cron.d/edr_c30"); // Make sure cron.d is owned by root (MUST BE OWNED BY ROOT for cron.d)
-        exec("chmod 700 /etc/cron.d/edr_c30"); // Root Access
-        exec("service cron restart"); // Restart Cron Service
+        exec("chmod 644 /etc/cron.d/edr_c30"); // chmod 644 to allow for Centos, 700 works on ubuntu, not on Centos 7
+        exec("systemctl restart cron"); // Restart Cron Service
         printf("CRON D Edr Script Created!\n");
       }
       else
