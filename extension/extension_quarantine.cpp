@@ -1,5 +1,5 @@
 // Note 1: Include the sdk.h helper.
-/*
+/* // << For updated OSQUERY USE >> 
 #include <osquery/core/system.h>
 #include <osquery/core/tables.h>
 #include <osquery/sdk/sdk.h>
@@ -7,7 +7,7 @@
 #include <osquery/utils/conversions/tryto.h>
 #include <osquery/logger/logger.h> */
 
-#include <osquery/system.h>
+#include <osquery/system.h> //<< OLD OSQUERY USE >> 
 #include <osquery/tables.h>
 #include <osquery/sdk/sdk.h>
 #include <osquery/sql/dynamic_table_row.h>
@@ -55,9 +55,12 @@ class SeceonTable : public osquery::TablePlugin {
   /// This is used to map rowids to primary keys
   std::unordered_map<RowID, PrimaryKey> rowid_to_primary_key;
   // Global variables used for Firewall Quarantine and Revert Quarantine
-  std::string firewall_export_location = "/tmp/";
-  std::string netsh_location = "C:\\Windows\\System32\\netsh.exe";
-  std::string osquery_path = "\"%ProgramFiles%\\osquery\\osqueryd\\osqueryd.exe\""; 
+  std::string firewall_backup = "/etc/osquery/rules_backup.fw";
+  std::string firewall_default = "/etc/osquery/rules_default.fw";
+  std::string firewall_save = "iptables-save > " + firewall_default;
+  std::string osquery_dir = "/etc/osquery/";
+  //std::string netsh_location = "C:\\Windows\\System32\\netsh.exe";
+  //std::string osquery_path = "\"%ProgramFiles%\\osquery\\osqueryd\\osqueryd.exe\""; 
   
   /// This is an example implementation for a basic primary key
   PrimaryKey getPrimaryKey(const osquery::Row& row) const {
@@ -152,70 +155,234 @@ class SeceonTable : public osquery::TablePlugin {
   /* Firewall Quaranting Begin */
 
   void FirewallQuarantine() 
-  {
+ {
     std::string output, command, edr_allow, server_string;
-    //output = exec_s("iptables-save > /tmp/rules_backup.fw"); 
-    exec("iptables-save > /tmp/rules_backup.fw"); //  Saves Rules to /tmp/rules_backup.fw 
-    bool filecheck;
-    filecheck = FileExists( "/tmp/rules_backup.fw");
-    if(filecheck) {
-    printf("### Firewall Backup Created Successfully ###\n");
-        }
-    else
-    printf("!!! Firewall Backup Failed !!!");
+  exec("iptables-save > /etc/osquery/rules_backup.fw"); //  Saves Rules to /etc/osquery/rules_backup.fw"
+  bool filecheck;
+  filecheck = FileExists( "/etc/osquery/rules_backup.fw");
+  if(filecheck) {
+  printf("### Firewall Backup Created Successfully ###\n");
+      }
+  else
+  printf("!!! Firewall Backup Failed !!!");
 
 
-    
-    std::string edr_ip, edr_port;
-    getEDRServer(edr_ip,edr_port);
-    if (edr_ip.empty() || edr_port.empty())
-        {
-          printf("EDRServer IP and Port not found. Unable to quarantine!");
-          
-        }
-  exec("iptables --flush");   // Flush All rules 
-  exec("iptables --delete-chain"); // Delete all chains
-  exec("iptables -A INPUT -i lo -j ACCEPT"); // Allow Loopback ? 
-  exec("iptables -A OUTPUT -o lo -j ACCEPT");
-  exec("iptables -A OUTPUT -p udp --dport 53 -j ACCEPT"); // Allow DNS lookup
-  exec("iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"); // Allow Established connections
+  
+  std::string edr_ip, edr_port;
+  getEDRServer(edr_ip,edr_port);
+  if (edr_ip.empty() || edr_port.empty())
+      {
+        printf("EDRServer IP and Port not found. Unable to quarantine!");
+        
+      }
 
-  /////// Add host to iptables //////// ****** ALLOW all interfaces - change **** 
-  edr_allow = "iptables -A INPUT -s " + edr_ip + " -p tcp --dport " + edr_port + " -j ACCEPT"; // Allows connections from source edr_ip on on port edr_port
+  std::string ip_flush, ip_del, ip_loop1, ip_loop2, ip_dns, ip_est, ip_edr1, ip_edr2, ip_drop, ip_save, ip_buffer;
+  ip_flush = "iptables --flush"; // Flush All rules 
+  exec(ip_flush);
+  ip_del = "iptables --delete-chain"; // Delete all chains
+  exec(ip_del);
+  ip_loop1 = "iptables -A INPUT -i lo -j ACCEPT"; // Allow Loopback
+  exec(ip_loop1);
+  ip_loop2 = "iptables -A OUTPUT -o lo -j ACCEPT";
+  exec(ip_loop2);
+  ip_dns = "iptables -A OUTPUT -p udp --dport 53 -j ACCEPT"; // Allow DNS lookup
+  exec(ip_dns);
+  ip_est = "iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"; // Allow Established connections
+  exec(ip_est);
+  /////// Add host to iptables ////////
+  ip_edr1 = "iptables -A INPUT -s " + edr_ip + " -p tcp --dport " + edr_port + " -i eth0 -j ACCEPT"; // Allows connections from source edr_ip on on port edr_port
+  exec(ip_edr1);
+  ip_edr2 = "iptables -A OUTPUT -d " + edr_ip + " -p tcp --dport " + edr_port + " -o eth0 -j ACCEPT"; // Allows outgoing connections to destination edr_ip on port edr_port
+  exec(ip_edr2);
+  ip_drop = "iptables -A INPUT -j DROP"; // Drop Everything Else
+  exec(ip_drop); 
+  ip_save = "iptables-save > /etc/osquery/rules_default.fw";
+  exec(ip_save);
+
+  // Allow SSH connections /// 
+  /*exec("iptables -A INPUT -p tcp --dport 22 -j ACCEPT");
+  exec("iptables -A INPUT -p tcp --dport 80 -j ACCEPT");
+  */
+
+
+/*
+  /// Allow SSH connections from host, but not to. (If SSH connection is made from host to agent, data can be exchanged however, agent to host ssh connection cannot be made, 
+  //host must initiate)
+  edr_allow = "iptables -A INPUT -p tcp --dport ssh -s " + edr_ip + " -m state --state NEW,ESTABLISHED -j ACCEPT";
+  exec(edr_allow);
+  edr_allow = "iptables -A OUTPUT -p tcp --sport 22 -d " + edr_ip + " -m state --state ESTABLISHED -j ACCEPT";
+  exec(edr_allow);
+*/
+
+
+  /*output = exec_s("host "+ edr_ip);
+  printf("%s",output.c_str()); // demo.seceon.com has address 96.237.103.37
+  server_string = edr_ip + " has address ";
+  eraseSubStr(output, server_string);
+  printf("%s", output.c_str()); */
+/*
+  /////// Add host to iptables ////////
+  edr_allow = "iptables -A INPUT -s " + edr_ip + " -p tcp --dport " + edr_port + " -i eth0 -j ACCEPT"; // Allows connections from source edr_ip on on port edr_port
   printf("%s \n", edr_allow.c_str());
   exec(edr_allow);
-  // iptables -A OUTPUT -d 96.237.103.37 -p tcp --dport 443 -o eth0 -j ACCEPT
-  // iptables -A INPUT -s demo.seceon.com -p tcp --dport 443 -i eth0 -j ACCEPT  
+  // iptables -A OUTPUT -d 96.237.103.37 -p tcp --dport 443 -o eth0 -j ACCEPT 
 
-  edr_allow = "iptables -A OUTPUT -d " + edr_ip + " -p tcp --dport " + edr_port + " -j ACCEPT"; // Allows outgoing connections to destination edr_ip on port edr_port
-  // iptables -A OUTPUT -d demo.seceon.com -p tcp --dport 443 -o eth0 -j ACCEPT 
-
-  printf("%s \n", edr_allow.c_str());
-  exec(edr_allow);
-
-
+  edr_allow = "iptables -A OUTPUT -d " + edr_ip + " -p tcp --dport " + edr_port + " -o eth0 -j ACCEPT"; // Allows outgoing connections to destination edr_ip on port edr_port
+  // iptables -A OUTPUT -d demo.seceon.com -p tcp --dport 443 -o eth0 -j ACCEPT
   // iptables -A <chain> -i <interface> -p <protocol (tcp/udp) > -s <source> --dport <port no.>  -j <target>
+  printf("%s \n", edr_allow.c_str());
+  exec(edr_allow);
 
   ///// Drop Everything Else /////
 
   exec("iptables -A INPUT -j DROP");
-  exec("iptables -A OUTPUT -j DROP");
+  exec("iptables-save > /etc/osquery/rules_default.fw");
 
   ///// Saves Rules, so that restart of an agent doesnt revert rules ///// 
   exec("/sbin/iptables-save"); // For Ubuntu
   // RedHat / Centos --> /sbin/iptables-save 
   // or --> /etc/init.d/iptables save
+*/
+
+  bool iptables_script, script_flag; // Creating Script to Restore Default Rules
+  iptables_script = FileExists("/etc/osquery/iptables_save.sh");
+  if(!iptables_script){ // IPTRABLE SCRIPT START
+    std::fstream script;
+    exec("touch /etc/osquery/iptables_save.sh");
+    exec("chmod 777 /etc/osquery/iptables_save.sh");
+    script.open("/etc/osquery/iptables_save.sh");
+    if(script.is_open()) {
+
+      printf("Script Opened\n");
+      script << "#!/bin/bash\n\n";
+      script << "iptables-restore < /etc/osquery/rules_default.fw";
+      script.close();
+      exec("chmod 744 /etc/osquery/iptables_save.sh");
+      script_flag = true;
+
+    }
+    else{
+      printf("Script Did Not Open\n");
+      script_flag = false;
+    }
+      
+  } // IPTABLES SCRIPT END
+  else
+    script_flag = true;
+
+
+  bool service_exists, service_flag; // Creating Service to Run Script on Reboot
+  service_exists = FileExists("/etc/systemd/system/iptables_rules_save.service");
+  if(!service_exists) { // SRVICE EXISTS START
+    std::fstream file;
+    exec("touch /etc/systemd/system/iptables_rules_save.service");
+    exec("chmod 777 /etc/systemd/system/iptables_rules_save.service");
+    file.open("/etc/systemd/system/iptables_rules_save.service");
+    if(file.is_open()) {
+      printf("File Opened \n");
+      file << "[Unit]\nDescription=Iptables-Save-Reboot\n\n";
+      file << "[Service]\nType=simple\n";
+      file << "Restart=on-failure\n";
+      file << "RestartSec=1\n";
+      file << "ExecStart=/bin/bash /etc/osquery/iptables_save.sh\n\n";
+      file << "[Install]\n";
+      file << "WantedBy=multi-user.target";
+      file.close();
+      service_flag = true;
+      exec("chmod 664 /etc/systemd/system/iptables_rules_save.service");
+                        }
+    else{
+      printf("File could not be opened\n");
+      service_flag = false;
+    }
+      
+    
+
+    } // SERVICE EXISTS END
+    else
+      service_flag = true;
+
+    if(script_flag && service_flag) { // Enabling and Starting Service
+      
+      exec("systemctl enable iptables_rules_save");
+      exec("systemctl start iptables_rules_save");
+      exec("systemctl daemon-reload");
+    }
+
+/*PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+export DISPLAY=:0.0
+*/ 
+// Adding a script that shall be run every 30 minutes to ensure EDR connection always resolves while system is in quarantine // 
+  bool edr_script, edrscript_flag; 
+  edr_script = FileExists("/etc/osquery/edr_connect30.sh");
+  if(!edr_script) { // EDR SCRIPT START
+    std::fstream script;
+    exec("touch /etc/osquery/edr_connect30.sh");
+    exec("chmod 700 /etc/osquery/edr_connect30.sh");
+    script.open("/etc/osquery/edr_connect30.sh");
+    if(script.is_open()) {
+      printf("EDR Connect 30 Minutes Script Opened\n");
+      script << "#!/bin/bash\n\n";
+      script <<"PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\nexport DISPLAY=:0.0\n"; // Giving Path is essential << 
+      ip_buffer = ip_flush + "\n" + ip_del + "\n" + ip_loop1 + "\n" + ip_loop2 + "\n"; // Using same commands used above to resolve and add host. 
+      script << ip_buffer;
+      ip_buffer = ip_dns + "\n" + ip_est + "\n" + ip_edr1 + "\n" + ip_edr2 + "\n" + ip_drop + "\n" + ip_save + "\n";
+      script << ip_buffer;
+      script.close();
+      printf("EDR Connect 30 Minutes Script Created! \n");
+      edrscript_flag = true;
+      exec("chmod +x /etc/osquery/edr_connect30.sh");
+      }
+    else {
+      printf("EDR Connect 30 Script Failed to Open! \n");
+      edrscript_flag = false;
+       }
+   } // EDR SCRIPT END
+  else 
+    edrscript_flag=true;
+
+
+/// APPEND TO CRONTAB ; */30 * * * * /etc/osquery/edr_connect30.sh 
+ // */30  --> every 30 minutes (divisible by 30), can set it to */10 for the script to run every 10 minutes << 
+  /// sudo systemctl start crond.service     (Centos7) ?
+    bool cron_edrscript;
+    cron_edrscript = FileExists("/etc/cron.d/edr_c30");
+    if(!cron_edrscript && edrscript_flag) {
+      exec("touch /etc/cron.d/edr_c30"); // Name of the file cannot contain extensions or it will be ignored.)
+      exec("chmod 777 /etc/cron.d/edr_c30");
+      std::fstream file;
+      file.open("//etc/cron.d/edr_c30");
+      if(file.is_open()) {
+        file <<"SHELL=/bin/sh\n";
+        file <<"PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n\n";
+        file <<"*/30 * * * * root /etc/osquery/edr_connect30.sh\n"; // cron.d files should have a line break at the end of the file to ensure it works
+        file.close();
+        exec("chown -R root:root /etc/cron.d/edr_c30"); // Make sure cron.d is owned by root (MUST BE OWNED BY ROOT for cron.d)
+        exec("chmod 700 /etc/cron.d/edr_c30"); // Root Access
+        exec("service cron restart"); // Restart Cron Service
+        printf("CRON D Edr Script Created!\n");
+      }
+      else
+        printf("CronD EDR Script could not be opened!\n");        
+    }
+  
 
 
     std::cout << "System has been quarantined!" << std::endl;
-  }
+ }
 
   void FirewallQuarantine_Revert() {
-
+  std::string buffer;
   exec("iptables --flush");   // Flush All rules 
   exec("iptables --delete-chain"); // Delete all chains
-  exec("iptables-restore < /tmp/rules_backup.fw");
-  exec("/sbin/iptables-save");
+  buffer = "iptables-restore < " + firewall_backup;
+  exec(buffer);
+  exec(firewall_save);
+  printf("FireBackup Restored!\n");
+  exec("rm /etc/osquery/edr_connect30.sh"); // Remove Script to flush and re-add host
+  exec("rm /etc/cron.d/edr_c30"); // Remove cron.d job to run script every 30 min
+  printf("Re-add Script and Cron.d Job Removed!\n");
+  exec("service cron restart");
 
   std::cout << "System Firewall has  been Reverted, Quarantine Ended" << std::endl;
 
@@ -249,7 +416,7 @@ class SeceonTable : public osquery::TablePlugin {
     std::vector<std::string> out;
 
     edrserver = "--tls_hostname=";
-    osquery_flags = "/tmp/osquery.flags";    
+    osquery_flags = osquery_dir + "osquery.flags";  
 
     nameFileout.open(osquery_flags);
 
