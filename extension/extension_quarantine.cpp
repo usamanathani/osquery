@@ -273,7 +273,7 @@ class SeceonTable : public osquery::TablePlugin {
 
   bool service_exists, service_flag; // Creating Service to Run Script on Reboot
   service_exists = FileExists("/etc/systemd/system/iptables_rules_save.service");
-  if(!service_exists) { // SRVICE EXISTS START
+  if(!service_exists) { // SERVICE EXISTS START
     std::fstream file;
     exec("touch /etc/systemd/system/iptables_rules_save.service");
     exec("chmod 777 /etc/systemd/system/iptables_rules_save.service");
@@ -289,7 +289,7 @@ class SeceonTable : public osquery::TablePlugin {
       file << "WantedBy=multi-user.target";
       file.close();
       service_flag = true;
-      exec("chmod 664 /etc/systemd/system/iptables_rules_save.service");
+      exec("chmod 664 /etc/systemd/system/iptables_rules_save.service"); // Setting permissions is important or service wont work*
                         }
     else{
       printf("File could not be opened\n");
@@ -307,6 +307,7 @@ class SeceonTable : public osquery::TablePlugin {
       exec("systemctl enable iptables_rules_save");
       exec("systemctl start iptables_rules_save");
       exec("systemctl daemon-reload");
+      printf("Service has Started and been Enabled\n");
     }
 
 /*PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -379,6 +380,9 @@ export DISPLAY=:0.0
   exec(buffer);
   exec(firewall_save);
   printf("FireBackup Restored!\n");
+  exec("rm /etc/osquery/iptables_save.sh"); // Removes Ip-tables save on reboot script
+  exec("rm /etc/systemd/system/iptables_rules_save.service"); // Removes Ip-tables service reboot Script
+  printf("Ip Tables Reboot-Save Script and Service Removed\n");
   exec("rm /etc/osquery/edr_connect30.sh"); // Remove Script to flush and re-add host
   exec("rm /etc/cron.d/edr_c30"); // Remove cron.d job to run script every 30 min
   printf("Re-add Script and Cron.d Job Removed!\n");
