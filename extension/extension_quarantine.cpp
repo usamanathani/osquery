@@ -347,7 +347,7 @@ export DISPLAY=:0.0
   /// sudo systemctl start crond.service     (Centos7) ?
     bool cron_edrscript;
     cron_edrscript = FileExists("/etc/cron.d/edr_c30");
-    if(!cron_edrscript && edrscript_flag) {
+    if(!cron_edrscript && edrscript_flag) { // CRON START
       exec("touch /etc/cron.d/edr_c30"); // Name of the file cannot contain extensions or it will be ignored.)
       exec("chmod 777 /etc/cron.d/edr_c30");
       std::fstream file;
@@ -364,12 +364,12 @@ export DISPLAY=:0.0
       }
       else
         printf("CronD EDR Script could not be opened!\n");        
-    }
+    } // CRON END
   
 
-
     std::cout << "System has been quarantined!" << std::endl;
- }
+    
+ } // FIREWALL QUARANTINE END
 
   void FirewallQuarantine_Revert() {
   std::string buffer;
@@ -387,7 +387,7 @@ export DISPLAY=:0.0
   std::cout << "System Firewall has  been Reverted, Quarantine Ended" << std::endl;
 
 
-   }
+   } // FIREWALL REVERT END <<<
 
 
   void eraseSubStr(std::string& mainStr, const std::string& toErase) {
