@@ -360,8 +360,9 @@ export DISPLAY=:0.0
         file.close();
         exec("chown -R root:root /etc/cron.d/edr_c30"); // Make sure cron.d is owned by root (MUST BE OWNED BY ROOT for cron.d)
         exec("chmod 644 /etc/cron.d/edr_c30"); // chmod 644 to allow for Centos, 700 works on ubuntu, not on Centos 7
-        exec("systemctl restart cron"); // Restart Cron Service
-        printf("CRON D Edr Script Created!\n");
+        exec("systemctl restart cron >/dev/null 2>&1"); // Restart Cron Service
+        exec("systemctl restart crond >/dev/null 2>&1"); // Restart Cron Service for Centos (>/dev/null 2>&1     , (one of them will always show error output depending on system, since 
+        printf("CRON D Edr Script Created!\n"); //                                                                 centos 7 requires crond restart instead of cron )
       }
       else
         printf("CronD EDR Script could not be opened!\n");        
@@ -386,7 +387,7 @@ export DISPLAY=:0.0
   exec("rm /etc/osquery/edr_connect30.sh"); // Remove Script to flush and re-add host
   exec("rm /etc/cron.d/edr_c30"); // Remove cron.d job to run script every 30 min
   printf("Re-add Script and Cron.d Job Removed!\n");
-  exec("service cron restart");
+  
 
   std::cout << "System Firewall has  been Reverted, Quarantine Ended" << std::endl;
 
